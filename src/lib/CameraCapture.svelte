@@ -16,6 +16,8 @@
 	let availableCameras: MediaDeviceInfo[] = [];
 	let currentCameraId: string | null = null;
 	let extractedData: any = null;
+	let currentStep = 'scan'; // 'scan', 'review', 'approved', 'rejected'
+	let scannedPerson: any = null;
 
 	// Get form data from the page store
 	$: form = $page.form;
@@ -141,6 +143,34 @@
 	function retakePhoto() {
 		capturedImage = null;
 		extractedData = null; // Clear extracted data when retaking
+		currentStep = 'scan';
+		scannedPerson = null;
+	}
+
+	function proceedToReview() {
+		if (extractedData) {
+			scannedPerson = extractedData;
+			currentStep = 'review';
+		}
+	}
+
+	function approvePerson() {
+		currentStep = 'approved';
+		// Here you could send approval to backend
+		console.log('Person approved:', scannedPerson);
+	}
+
+	function rejectPerson() {
+		currentStep = 'rejected';
+		// Here you could send rejection to backend
+		console.log('Person rejected:', scannedPerson);
+	}
+
+	function startNewScan() {
+		currentStep = 'scan';
+		capturedImage = null;
+		extractedData = null;
+		scannedPerson = null;
 	}
 
 	function selectFromFiles() {
@@ -173,7 +203,22 @@
 </script>
 
 <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-6">
-	<h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Camera Capture</h2>
+	<h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Security Checkpoint</h2>
+	
+	<!-- Progress Steps -->
+	<div class="flex justify-center mb-6">
+		<div class="flex items-center space-x-4">
+			<div class="flex items-center">
+				<div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium {currentStep === 'scan' ? 'bg-blue-500 text-white' : currentStep === 'review' || currentStep === 'approved' || currentStep === 'rejected' ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'}">1</div>
+				<span class="ml-2 text-sm font-medium {currentStep === 'scan' ? 'text-blue-600' : currentStep === 'review' || currentStep === 'approved' || currentStep === 'rejected' ? 'text-green-600' : 'text-gray-500'}">Scan ID</span>
+			</div>
+			<div class="w-8 h-0.5 {currentStep === 'review' || currentStep === 'approved' || currentStep === 'rejected' ? 'bg-green-500' : 'bg-gray-300'}"></div>
+			<div class="flex items-center">
+				<div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium {currentStep === 'review' ? 'bg-blue-500 text-white' : currentStep === 'approved' || currentStep === 'rejected' ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'}">2</div>
+				<span class="ml-2 text-sm font-medium {currentStep === 'review' ? 'text-blue-600' : currentStep === 'approved' || currentStep === 'rejected' ? 'text-green-600' : 'text-gray-500'}">Review</span>
+			</div>
+		</div>
+	</div>
 	
 	{#if error}
 		<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -205,36 +250,94 @@
 		</div>
 	{/if}
 
-	{#if (form?.extractedData) || extractedData}
-		{@const data = form?.extractedData || extractedData}
+	{#if currentStep === 'review' && scannedPerson}
 		<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-			<h3 class="text-lg font-semibold text-blue-800 mb-3">📋 Extracted Information</h3>
+			<h3 class="text-lg font-semibold text-blue-800 mb-3">👤 Person Details - Review Required</h3>
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 				<div class="bg-white p-3 rounded border">
 					<div class="text-sm font-medium text-gray-600">First Name:</div>
-					<p class="text-gray-900 font-medium">{data.firstName}</p>
+					<p class="text-gray-900 font-medium">{scannedPerson.firstName}</p>
 				</div>
 				<div class="bg-white p-3 rounded border">
 					<div class="text-sm font-medium text-gray-600">Last Name:</div>
-					<p class="text-gray-900 font-medium">{data.lastName}</p>
+					<p class="text-gray-900 font-medium">{scannedPerson.lastName}</p>
 				</div>
 				<div class="bg-white p-3 rounded border">
 					<div class="text-sm font-medium text-gray-600">ID Number:</div>
-					<p class="text-gray-900 font-medium">{data.idNumber}</p>
+					<p class="text-gray-900 font-medium">{scannedPerson.idNumber}</p>
 				</div>
 				<div class="bg-white p-3 rounded border">
 					<div class="text-sm font-medium text-gray-600">Serial Number:</div>
-					<p class="text-gray-900 font-medium">{data.serialNumber}</p>
+					<p class="text-gray-900 font-medium">{scannedPerson.serialNumber}</p>
 				</div>
 			</div>
-			<div class="mt-3 p-3 bg-gray-50 rounded">
-				<div class="text-sm font-medium text-gray-600">Raw JSON Data:</div>
-				<pre class="text-xs text-gray-700 mt-1 overflow-x-auto">{JSON.stringify(data, null, 2)}</pre>
+			
+			<!-- Approval/Rejection Buttons -->
+			<div class="mt-6 flex gap-3">
+				<button
+					onclick={approvePerson}
+					class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-colors flex items-center justify-center"
+				>
+					✅ Approve Access
+				</button>
+				<button
+					onclick={rejectPerson}
+					class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg transition-colors flex items-center justify-center"
+				>
+					❌ Deny Access
+				</button>
+			</div>
+			
+			<div class="mt-4 text-center">
+				<button
+					onclick={startNewScan}
+					class="text-gray-500 hover:text-gray-700 underline text-sm"
+				>
+					Scan Another ID
+				</button>
 			</div>
 		</div>
 	{/if}
 
-	{#if !capturedImage}
+	{#if currentStep === 'approved'}
+		<div class="bg-green-50 border border-green-200 rounded-lg p-6 mb-4 text-center">
+			<div class="text-6xl mb-4">✅</div>
+			<h3 class="text-2xl font-bold text-green-800 mb-2">Access Approved</h3>
+			<p class="text-green-700 mb-4">Person has been granted access</p>
+			<div class="bg-white p-4 rounded border mb-4">
+				<p class="text-sm text-gray-600">Approved for:</p>
+				<p class="font-semibold text-gray-900">{scannedPerson?.firstName} {scannedPerson?.lastName}</p>
+				<p class="text-xs text-gray-500">ID: {scannedPerson?.idNumber}</p>
+			</div>
+			<button
+				onclick={startNewScan}
+				class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+			>
+				Scan Next Person
+			</button>
+		</div>
+	{/if}
+
+	{#if currentStep === 'rejected'}
+		<div class="bg-red-50 border border-red-200 rounded-lg p-6 mb-4 text-center">
+			<div class="text-6xl mb-4">❌</div>
+			<h3 class="text-2xl font-bold text-red-800 mb-2">Access Denied</h3>
+			<p class="text-red-700 mb-4">Person has been denied access</p>
+			<div class="bg-white p-4 rounded border mb-4">
+				<p class="text-sm text-gray-600">Denied for:</p>
+				<p class="font-semibold text-gray-900">{scannedPerson?.firstName} {scannedPerson?.lastName}</p>
+				<p class="text-xs text-gray-500">ID: {scannedPerson?.idNumber}</p>
+			</div>
+			<button
+				onclick={startNewScan}
+				class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+			>
+				Scan Next Person
+			</button>
+		</div>
+	{/if}
+
+	{#if currentStep === 'scan' && !capturedImage}
 		<!-- Camera View -->
 		<div class="relative bg-gray-100 rounded-lg overflow-hidden mb-4">
 			<video
@@ -337,7 +440,7 @@
 				class="hidden"
 			/>
 		</div>
-	{:else}
+	{:else if currentStep === 'scan' && capturedImage}
 		<!-- Captured Image Preview -->
 		<div class="mb-4">
 			<img
@@ -359,6 +462,10 @@
 				if (result.type === 'success' && result.data?.extractedData) {
 					extractedData = result.data.extractedData;
 					console.log('Extracted data stored locally:', extractedData);
+					// Automatically proceed to review step
+					setTimeout(() => {
+						proceedToReview();
+					}, 1000); // Small delay to show success message
 				}
 			};
 		}}>

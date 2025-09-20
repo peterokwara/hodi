@@ -10,6 +10,7 @@
 	let stream: MediaStream | null = null;
 	let capturedImage: string | null = null;
 	let isCapturing = false;
+	let isProcessing = false;
 	let error = '';
 	let selectedCamera = 'back'; // 'front' or 'back'
 	let availableCameras: MediaDeviceInfo[] = [];
@@ -183,6 +184,43 @@
 		</div>
 	{/if}
 
+	{#if isProcessing}
+		<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+			<div class="flex items-center">
+				<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-3"></div>
+				<p class="text-yellow-800 font-medium">🤖 Analyzing image with AI...</p>
+			</div>
+		</div>
+	{/if}
+
+	{#if form?.extractedData}
+		<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+			<h3 class="text-lg font-semibold text-blue-800 mb-3">📋 Extracted Information</h3>
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+				<div class="bg-white p-3 rounded border">
+					<div class="text-sm font-medium text-gray-600">First Name:</div>
+					<p class="text-gray-900 font-medium">{form.extractedData.firstName}</p>
+				</div>
+				<div class="bg-white p-3 rounded border">
+					<div class="text-sm font-medium text-gray-600">Last Name:</div>
+					<p class="text-gray-900 font-medium">{form.extractedData.lastName}</p>
+				</div>
+				<div class="bg-white p-3 rounded border">
+					<div class="text-sm font-medium text-gray-600">ID Number:</div>
+					<p class="text-gray-900 font-medium">{form.extractedData.idNumber}</p>
+				</div>
+				<div class="bg-white p-3 rounded border">
+					<div class="text-sm font-medium text-gray-600">Serial Number:</div>
+					<p class="text-gray-900 font-medium">{form.extractedData.serialNumber}</p>
+				</div>
+			</div>
+			<div class="mt-3 p-3 bg-gray-50 rounded">
+				<div class="text-sm font-medium text-gray-600">Raw JSON Data:</div>
+				<pre class="text-xs text-gray-700 mt-1 overflow-x-auto">{JSON.stringify(form.extractedData, null, 2)}</pre>
+			</div>
+		</div>
+	{/if}
+
 	{#if !capturedImage}
 		<!-- Camera View -->
 		<div class="relative bg-gray-100 rounded-lg overflow-hidden mb-4">
@@ -297,20 +335,28 @@
 		</div>
 
 		<!-- Form to submit the photo -->
-		<form method="POST" action="?/uploadPhoto" use:enhance>
+		<form method="POST" action="?/uploadPhoto" use:enhance={() => {
+			isProcessing = true;
+			return async ({ update }) => {
+				await update();
+				isProcessing = false;
+			};
+		}}>
 			<input type="hidden" name="photo" value={capturedImage} />
 			
 			<div class="flex gap-2">
 				<button
 					type="submit"
-					class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors"
+					disabled={isProcessing}
+					class="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white font-bold py-2 px-4 rounded transition-colors"
 				>
-					Upload Photo
+					{isProcessing ? 'Processing...' : 'Extract Details'}
 				</button>
 				<button
 					type="button"
 					onclick={retakePhoto}
-					class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition-colors"
+					disabled={isProcessing}
+					class="flex-1 bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 text-white font-bold py-2 px-4 rounded transition-colors"
 				>
 					Retake
 				</button>

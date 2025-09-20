@@ -11,20 +11,69 @@
 	let capturedImage: string | null = null;
 	let isCapturing = false;
 	let error = '';
+	let selectedCamera = 'back'; // 'front' or 'back'
+	let availableCameras: MediaDeviceInfo[] = [];
+	let currentCameraId: string | null = null;
 
 	// Get form data from the page store
 	let form = $page.form;
 
+	async function getAvailableCameras() {
+		try {
+			const devices = await navigator.mediaDevices.enumerateDevices();
+			availableCameras = devices.filter(device => device.kind === 'videoinput');
+			console.log('Available cameras:', availableCameras);
+		} catch (err) {
+			console.error('Error getting camera devices:', err);
+		}
+	}
+
 	async function startCamera() {
 		try {
 			error = '';
-			stream = await navigator.mediaDevices.getUserMedia({ 
-				video: { 
+			
+			// Get available cameras first
+			await getAvailableCameras();
+			
+			// Find the appropriate camera based on selection
+			let cameraId: string | undefined;
+			let facingMode: VideoFacingModeEnum | undefined;
+			
+			if (selectedCamera === 'back') {
+				// Try to find back camera by label or use facingMode
+				const backCamera = availableCameras.find(camera => 
+					camera.label.toLowerCase().includes('back') || 
+					camera.label.toLowerCase().includes('rear')
+				);
+				if (backCamera) {
+					cameraId = backCamera.deviceId;
+				} else {
+					facingMode = 'environment'; // Back camera
+				}
+			} else {
+				// Try to find front camera by label or use facingMode
+				const frontCamera = availableCameras.find(camera => 
+					camera.label.toLowerCase().includes('front') || 
+					camera.label.toLowerCase().includes('user')
+				);
+				if (frontCamera) {
+					cameraId = frontCamera.deviceId;
+				} else {
+					facingMode = 'user'; // Front camera
+				}
+			}
+
+			const constraints: MediaStreamConstraints = {
+				video: {
 					width: { ideal: 1280 },
 					height: { ideal: 720 },
-					facingMode: 'user' // Front camera
-				} 
-			});
+					...(cameraId ? { deviceId: { exact: cameraId } } : { facingMode })
+				}
+			};
+
+			stream = await navigator.mediaDevices.getUserMedia(constraints);
+			currentCameraId = cameraId || null;
+			
 			if (video) {
 				video.srcObject = stream;
 				video.play();
@@ -44,6 +93,18 @@
 			video.srcObject = null;
 		}
 		capturedImage = null;
+		currentCameraId = null;
+	}
+
+	async function switchCamera() {
+		// Stop current camera
+		stopCamera();
+		
+		// Toggle camera selection
+		selectedCamera = selectedCamera === 'front' ? 'back' : 'front';
+		
+		// Start with new camera
+		await startCamera();
 	}
 
 	function capturePhoto() {
@@ -85,6 +146,12 @@
 			reader.readAsDataURL(file);
 		}
 	}
+
+	// Initialize camera detection when component mounts
+	import { onMount } from 'svelte';
+	onMount(() => {
+		getAvailableCameras();
+	});
 
 	// Clean up camera when component is destroyed
 	onDestroy(() => {
@@ -137,6 +204,37 @@
 						<p class="text-gray-600">Camera not started</p>
 					</div>
 				</div>
+			{:else}
+				<!-- Camera Status Indicator -->
+				<div class="absolute top-2 right-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
+					{selectedCamera === 'back' ? '📷 Back' : '🤳 Front'}
+				</div>
+			{/if}
+		</div>
+
+		<!-- Camera Selection -->
+		<div class="mb-4">
+			<div class="block text-sm font-medium text-gray-700 mb-2">Camera:</div>
+			<div class="flex gap-2">
+				<button
+					onclick={() => { selectedCamera = 'back'; if (stream) switchCamera(); }}
+					class="flex-1 py-2 px-4 rounded transition-colors {selectedCamera === 'back' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}"
+				>
+					📷 Back Camera
+				</button>
+				<button
+					onclick={() => { selectedCamera = 'front'; if (stream) switchCamera(); }}
+					class="flex-1 py-2 px-4 rounded transition-colors {selectedCamera === 'front' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}"
+				>
+					🤳 Front Camera
+				</button>
+			</div>
+			{#if availableCameras.length === 0}
+				<p class="text-xs text-gray-500 mt-1">Detecting cameras...</p>
+			{:else if availableCameras.length === 1}
+				<p class="text-xs text-gray-500 mt-1">Only one camera detected</p>
+			{:else}
+				<p class="text-xs text-gray-500 mt-1">{availableCameras.length} cameras detected</p>
 			{/if}
 		</div>
 
@@ -156,6 +254,13 @@
 					class="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white font-bold py-2 px-4 rounded transition-colors"
 				>
 					{isCapturing ? 'Capturing...' : 'Capture Photo'}
+				</button>
+				<button
+					onclick={switchCamera}
+					class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded transition-colors"
+					title="Switch Camera"
+				>
+					🔄
 				</button>
 				<button
 					onclick={stopCamera}
@@ -186,6 +291,7 @@
 		<div class="mb-4">
 			<img
 				src={capturedImage}
+				alt=""
 				class="w-full h-64 object-cover rounded-lg"
 			/>
 		</div>

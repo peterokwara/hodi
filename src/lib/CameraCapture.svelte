@@ -15,9 +15,20 @@
 	let selectedCamera = 'back'; // 'front' or 'back'
 	let availableCameras: MediaDeviceInfo[] = [];
 	let currentCameraId: string | null = null;
+	let extractedData: any = null;
 
 	// Get form data from the page store
-	let form = $page.form;
+	$: form = $page.form;
+	
+	// Debug form data
+	$: if (form) {
+		console.log('Form data updated:', form);
+	}
+	
+	// Debug extracted data
+	$: if (extractedData) {
+		console.log('Extracted data updated locally:', extractedData);
+	}
 
 	async function getAvailableCameras() {
 		try {
@@ -129,6 +140,7 @@
 
 	function retakePhoto() {
 		capturedImage = null;
+		extractedData = null; // Clear extracted data when retaking
 	}
 
 	function selectFromFiles() {
@@ -193,30 +205,31 @@
 		</div>
 	{/if}
 
-	{#if form?.extractedData}
+	{#if (form?.extractedData) || extractedData}
+		{@const data = form?.extractedData || extractedData}
 		<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
 			<h3 class="text-lg font-semibold text-blue-800 mb-3">📋 Extracted Information</h3>
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 				<div class="bg-white p-3 rounded border">
 					<div class="text-sm font-medium text-gray-600">First Name:</div>
-					<p class="text-gray-900 font-medium">{form.extractedData.firstName}</p>
+					<p class="text-gray-900 font-medium">{data.firstName}</p>
 				</div>
 				<div class="bg-white p-3 rounded border">
 					<div class="text-sm font-medium text-gray-600">Last Name:</div>
-					<p class="text-gray-900 font-medium">{form.extractedData.lastName}</p>
+					<p class="text-gray-900 font-medium">{data.lastName}</p>
 				</div>
 				<div class="bg-white p-3 rounded border">
 					<div class="text-sm font-medium text-gray-600">ID Number:</div>
-					<p class="text-gray-900 font-medium">{form.extractedData.idNumber}</p>
+					<p class="text-gray-900 font-medium">{data.idNumber}</p>
 				</div>
 				<div class="bg-white p-3 rounded border">
 					<div class="text-sm font-medium text-gray-600">Serial Number:</div>
-					<p class="text-gray-900 font-medium">{form.extractedData.serialNumber}</p>
+					<p class="text-gray-900 font-medium">{data.serialNumber}</p>
 				</div>
 			</div>
 			<div class="mt-3 p-3 bg-gray-50 rounded">
 				<div class="text-sm font-medium text-gray-600">Raw JSON Data:</div>
-				<pre class="text-xs text-gray-700 mt-1 overflow-x-auto">{JSON.stringify(form.extractedData, null, 2)}</pre>
+				<pre class="text-xs text-gray-700 mt-1 overflow-x-auto">{JSON.stringify(data, null, 2)}</pre>
 			</div>
 		</div>
 	{/if}
@@ -337,9 +350,16 @@
 		<!-- Form to submit the photo -->
 		<form method="POST" action="?/uploadPhoto" use:enhance={() => {
 			isProcessing = true;
-			return async ({ update }) => {
+			extractedData = null; // Clear previous data
+			return async ({ update, result }) => {
 				await update();
 				isProcessing = false;
+				
+				// Handle the result
+				if (result.type === 'success' && result.data?.extractedData) {
+					extractedData = result.data.extractedData;
+					console.log('Extracted data stored locally:', extractedData);
+				}
 			};
 		}}>
 			<input type="hidden" name="photo" value={capturedImage} />
